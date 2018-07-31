@@ -28,15 +28,23 @@ dnf install\
 dnf clean all -y --installroot $scratchmnt --releasever 7
 rm -rf $scratchmnt/var/cache/yum
 
-# install/configure dokuwiki
+# configure lighttpd and fast-cgi
 sed -i s/apache/lighttpd/g $scratchmnt/etc/php-fpm.d/www.conf
 sed -i s/"#include \"conf.d\/fastcgi.conf\""/"include \"conf.d\/fastcgi.conf\""/ $scratchmnt/etc/lighttpd/modules.conf
 echo 'include "/etc/lighttpd/vhosts.d/*.conf"' >> $scratchmnt/etc/lighttpd/lighttpd.conf
+echo 'cgi.fix_pathinfo=1' >> $scratchmnt/etc/php.ini
+mkdir $scratchmnt/var/run/lighttpd
+buildah run $newcontainer chown -R lighttpd:lighttpd /var/run/lighttpd
+buildah add $newcontainer lighttpd-dokuwiki.conf /etc/lighttpd/vhosts.d/dokuwiki.conf
+
+# install/configure dokuwiki
 wget -p -O $scratchmnt/dokuwiki.tgz "https://download.dokuwiki.org/src/dokuwiki/dokuwiki-stable.tgz"
 mkdir $scratchmnt/dokuwiki
 tar -zxf $scratchmnt/dokuwiki.tgz -C $scratchmnt/dokuwiki --strip-components 1
 buildah run $newcontainer chown -R lighttpd:lighttpd /dokuwiki
-buildah add $newcontainer lighttpd-dokuwiki.conf /etc/lighttpd/vhosts.d/dokuwiki.conf
+
+# configure volume mounts
+buildah config --volume ["/dokuwiki/data/","/dokuwiki/lib/plugins/","/dokuwiki/conf/","/dokuwiki/lib/tpl/","/var/log/"]
 
 # configure container
 buildah config --label name=$name $newcontainer
